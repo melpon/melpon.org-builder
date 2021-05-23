@@ -257,7 +257,8 @@ class Switches(object):
         gcc_vers = sort_version(get_gcc_versions(includes_gcc_1=False, with_head=True))
         clang_vers = sort_version(get_generic_versions('clang', with_head=True))
         zapcc_vers = sort_version(get_generic_versions('zapcc', with_head=False))
-        compiler_vers = [('gcc', v) for v in gcc_vers] + [('clang', v) for v in clang_vers] + [('zapcc', v) for v in zapcc_vers]
+        icpc_vers = sort_version(get_generic_versions('icc', with_head=False))
+        compiler_vers = [('gcc', v) for v in gcc_vers] + [('clang', v) for v in clang_vers] + [('zapcc', v) for v in zapcc_vers] + [('icpc', v) for v in icpc_vers]
 
         boost_ver_set = set(get_boost_versions_with_head())
         boost_libs = {}
@@ -1026,6 +1027,141 @@ class Compilers(object):
 
         return compilers
 
+    def make_icc(self):
+        icc_vers = sort_version(get_generic_versions('icc', with_head=False), reverse=True)
+
+        compilers = []
+        for cv in icc_vers:
+            switches = []
+            initial_checked = []
+
+            # default
+            switches += ['warning', 'optimize', 'cpp-verbose']
+            initial_checked += ['warning']
+
+            # C
+            switches += ['std-c-default', 'c89', 'gnu89', 'c99', 'gnu99', 'c11', 'c17', 'c18']
+            initial_checked += [switches[-1]]
+
+            # pedantic
+            switches += ['cpp-no-pedantic', 'cpp-pedantic', 'cpp-pedantic-errors']
+
+            # -fansi-escape-codes
+            ansi_escape_codes = ['-fansi-escape-codes']
+
+            # compile-command
+            compile_command = [
+                '/opt/wandbox/icc-{cv}/run-icc.sh',
+                '-oprog.exe',
+                '-fcolor-diagnostics'
+                ] + ansi_escape_codes + [
+                'prog.c'
+            ]
+
+            display_name = 'icc'
+            version_command = ['/bin/echo', '{cv}']
+
+            compilers.append(format_value({
+                'name': 'icc-{cv}',
+                'compile-command': compile_command,
+                'version-command': version_command,
+                'display-name': display_name,
+                'display-compile-command': 'icc prog.c',
+                'language': 'C',
+                'output-file': 'prog.c',
+                'run-command': './prog.exe',
+                'displayable': True,
+                'compiler-option-raw': True,
+                'switches': switches,
+                'initial-checked': initial_checked,
+                'jail-name': 'melpon2-default',
+                'templates': ['icc'],
+            }, cv=cv))
+
+        return compilers
+
+    def make_icpc(self):
+        boost_vers = sort_version(set(a for a, _, _ in get_boost_versions_with_head()))
+        icpc_vers = sort_version(get_generic_versions('icc', with_head=False), reverse=True)
+
+        boost_ver_set = set(get_boost_versions_with_head())
+        # boost versions
+        boost_switches = {}
+        for cv in icpc_vers:
+            xs = []
+            for bv in boost_vers:
+                if (bv, 'icpc', cv) not in boost_ver_set:
+                    continue
+                xs.append('{bv}'.format(bv=bv))
+            nothing = ['boost-nothing-icpc-{cv}'.format(cv=cv)]
+            boost_switches[cv] = nothing + ['boost-{x}-icpc-{cv}'.format(x=x, cv=cv) for x in sort_version(xs)]
+
+        compilers = []
+        for cv in icpc_vers:
+            switches = []
+            initial_checked = []
+
+            # default
+            switches += ['warning', 'optimize', 'cpp-verbose']
+            initial_checked += ['warning']
+
+            # boost
+            if cv in boost_switches:
+                bs = boost_switches[cv]
+                switches += bs
+                initial_checked += [bs[-1]]
+
+            # libs
+            switches += ['sprout', 'msgpack']
+
+            # C++
+            switches += ['std-c++-default', 'c++98', 'gnu++98', 'c++11', 'gnu++11', 'c++14', 'gnu++14', 'c++17', 'gnu++17', 'c++20', 'gnu++20']
+            initial_checked += [switches[-1]]
+
+            # pedantic
+            switches += ['cpp-no-pedantic', 'cpp-pedantic', 'cpp-pedantic-errors']
+
+            # -fansi-escape-codes
+            ansi_escape_codes = ['-fansi-escape-codes']
+
+            # compile-command
+            compile_command = [
+                '/opt/wandbox/icc-{cv}/run-icpc.sh',
+                '-oprog.exe',
+                '-fcolor-diagnostics'
+                ] + ansi_escape_codes + [
+                '-lpthread',
+                '-I/opt/wandbox/boost-sml/include',
+                '-I/opt/wandbox/boost-di/include',
+                '-I/opt/wandbox/range-v3/include',
+                '-I/opt/wandbox/nlohmann-json/include',
+                '-I/opt/wandbox/cmcstl2/include',
+                '-I/opt/wandbox/te/include']
+            compile_command += ['prog.cc']
+
+            # head specific
+            display_name = 'icpc'
+            version_command = ['/bin/echo', '{cv}']
+
+            compilers.append(format_value({
+                'name': 'icpc-{cv}',
+                'compile-command': compile_command,
+                'version-command': version_command,
+                'display-name': display_name,
+                'display-compile-command': 'icpc prog.cc',
+                'language': 'C++',
+                'output-file': 'prog.cc',
+                'run-command': './prog.exe',
+                'displayable': True,
+                'compiler-option-raw': True,
+                'switches': switches,
+                'initial-checked': initial_checked,
+                'jail-name': 'melpon2-default',
+                'templates': ['icpc'],
+            }, cv=cv))
+
+        return compilers
+        
     def make_mono(self):
         mono_vers = sort_version(get_generic_versions('mono', with_head=True), reverse=True)
         compilers = []
@@ -2375,6 +2511,8 @@ class Compilers(object):
             self.make_clang_pp() +
             self.make_clang() +
             self.make_zapcc() +
+            self.make_icc() +
+            self.make_icpc() +
             self.make_mono() +
             self.make_rill() +
             self.make_erlang() +

@@ -199,6 +199,13 @@ def test_boost_head():
         add_test(name, lambda: run_boost(version, compiler, 'head', code, '23\n0\nSuccess\n'))
 
 
+def test_icpc():
+    code = codecs.open('../build/icc/resources/test.c', 'r', 'utf-8').read()
+    for cv in get_generic_versions('icc', with_head=False):
+        compiler = 'icpc-{cv}'.format(cv=cv)
+        add_test(compiler, lambda compiler=compiler: run(compiler, code, 'hello\n'))
+
+
 def test_preprocessor():
     compiler = 'gcc-head-pp'
     code = codecs.open('../build/gcc-head/resources/test.pp', 'r', 'utf-8').read()
@@ -249,6 +256,8 @@ def register():
     test_generic(name='clang', test_file='test.c', expected='hello\n', with_head=True, post_name='-c')
     test_generic(name='clang', test_file='test.cpp', expected='hello\n', with_head=True)
     test_generic(name='zapcc', test_file='test.cpp', expected='hello\n', with_head=False)
+    test_generic(name='icc', test_file='test.c', expected='hello\n', with_head=False)
+    test_icpc()
     test_preprocessor()
     test_generic(name='mono', test_file='test.cs', expected='hello\n', with_head=True)
     test_generic(name='erlang', test_file='prog.erl', expected='hello\n', with_head=True)

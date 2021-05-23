@@ -1,0 +1,5 @@
+#!/bin/bash
+
+. @icc_prefix@/setvars.sh 2>&1 >/dev/null
+
+icc "$@"
