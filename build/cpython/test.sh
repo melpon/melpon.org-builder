@@ -18,3 +18,7 @@ fi
 
 $PYTHON $BASE_DIR/resources/test.py > /dev/null
 test "`$PYTHON $BASE_DIR/resources/test.py`" = "hello"
+
+NUMPY_TEST='import numpy; print(numpy.array([1.0]))'
+$PYTHON -c "$NUMPY_TEST" > /dev/null
+test "`$PYTHON -c "$NUMPY_TEST"`" = '[1.]'

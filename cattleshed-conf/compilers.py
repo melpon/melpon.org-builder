@@ -46,6 +46,12 @@ def get_boost_versions_with_head():
     return get_boost_versions() + [(bv,) + tuple(c.split('-')) for bv, c in get_boost_head_versions()]
 
 
+# [(<numpy-version>, <compiler>, <compiler-version>)]
+def get_numpy_versions():
+    lines = open(os.path.join(build_path(), 'numpy', 'VERSIONS')).readlines()
+    return [tuple(line.split()) for line in lines if len(line.strip()) != 0]
+
+
 def read_versions(name):
     lines = open(os.path.join(build_path(), name, 'VERSIONS')).readlines()
     return [line.strip() for line in lines if len(line) != 0]
@@ -252,6 +258,34 @@ class Switches(object):
         ]
         return self.resolve_conflicts(pairs, 'std-cxx')
 
+    def make_numpy(self):
+        numpy_vers = sort_version(set(a for a, _, _ in get_numpy_versions()))
+        numpy_ver_set = set(get_numpy_versions())
+        compiler_vers = [('cpython', v) for v in get_generic_versions('cpython', False)]
+
+        result = []
+        for c, cv in compiler_vers:
+            pairs = format_value([
+                ('numpy-nothing-{c}-{cv}', {
+                    'flags': [],
+                    'display-name': "Don't Use Numpy",
+                    'display-flags': '',
+                }),
+            ], c=c, cv=cv)
+            for bv in numpy_vers:
+                if (bv, c, cv) not in numpy_ver_set:
+                    continue
+
+                pairs.append(format_value(('numpy-{bv}-{c}-{cv}', {
+                    'flags': [
+                        'PYTHONPATH=/opt/wandbox/numpy-{bv}/{c}-{cv}'
+                    ],
+                    'display-name': 'Numpy {bv}',
+                    'display-flags': 'PYTHONPATH=/opt/wandbox/numpy-{bv}/{c}-{cv}',
+                }), bv=bv, c=c, cv=cv))
+            result.append(self.resolve_conflicts(pairs, 'numpy-{c}-{cv}'.format(c=c, cv=cv)))
+        return merge(*result)
+
     def make_boost(self):
         boost_vers = sort_version(set(a for a, _, _ in get_boost_versions_with_head()))
         gcc_vers = sort_version(get_gcc_versions(includes_gcc_1=False, with_head=True))
@@ -427,7 +461,8 @@ class Switches(object):
             self.make_boost(),
             self.make_boost_header(),
             self.make_c(),
-            self.make_cxx())
+            self.make_cxx(),
+            self.make_numpy())
 
 class Compilers(object):
     def make_gcc_c(self):
@@ -1363,6 +1398,9 @@ class Compilers(object):
             else:
                 version_command = ['/bin/echo', '{cv}']
 
+            switches = ['numpy-nothing-cpython-{cv}'.format(cv=cv)]
+            switches += ['numpy-{x}-cpython-{cv}'.format(x=x, cv=cv) for x in sort_version(get_numpy_versions())]
+
             compilers.append(format_value({
                 'name': 'cpython-{cv}',
                 'displayable': True,
@@ -1371,7 +1409,7 @@ class Compilers(object):
                 'compiler-option-raw': False,
                 'compile-command': ['/bin/true'],
                 'version-command': version_command,
-                'switches': [],
+                'switches': switches,
                 'initial-checked': [],
                 'display-name': display_name,
                 'display-compile-command': '{python} prog.py',
